@@ -12,12 +12,28 @@ on:
 permissions:
   contents: write
 
+# Serialize runs so concurrent triggers can't race on `git push` and produce
+# a non-fast-forward failure mid-cleanup.
+concurrency:
+  group: build-deeplink-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
+    # Hard-restrict to main: workflow_dispatch lets anyone with actions:write
+    # pick any ref. Since the job carries `contents: write`, an attacker who
+    # could push a branch and dispatch on it would run arbitrary code on the
+    # self-hosted runner with a write token. Push trigger is already main-only
+    # via the path filter above.
+    if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64, bigipig-routing]
     timeout-minutes: 10
     steps:
+      # Force checkout of main even when the dispatcher chose another ref,
+      # so the job never executes code from an arbitrary branch.
       - uses: actions/checkout@v4
+        with:
+          ref: refs/heads/main
 
       - name: Set up Python
         uses: actions/setup-python@v5
