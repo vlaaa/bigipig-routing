@@ -22,7 +22,7 @@ def build_deeplink(json_path: Path, deeplink_path: Path) -> tuple[int, int]:
 
     minified = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
     encoded = base64.urlsafe_b64encode(minified.encode('utf-8')).decode('ascii').rstrip('=')
-    deeplink = f'happ://routing/onadd/{encoded}'
+    deeplink = f'happ://routing/add/{encoded}'
 
     deeplink_path.parent.mkdir(parents=True, exist_ok=True)
     deeplink_path.write_text(deeplink, encoding='utf-8')
