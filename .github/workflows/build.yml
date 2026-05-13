@@ -15,6 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, linux, x64, bigipig-routing]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -34,9 +35,11 @@ jobs:
 
       - name: Validate deeplink format
         run: |
+          # Prefix is 'add' (not 'onadd') — confirmed working with Happ client
+          # and matches what scripts/build_deeplink.py emits.
           deeplink=$(cat HAPP/default.deeplink)
           case "$deeplink" in
-            happ://routing/onadd/*) ;;
+            happ://routing/add/*) ;;
             *) echo "Invalid deeplink prefix: $deeplink" >&2; exit 1 ;;
           esac
 
