@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bigipig Routing Diag</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;max-width:760px;margin:0 auto;padding:14px;background:#0d0d0f;color:#e5e7eb;font-size:14px}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{font-size:12px;color:#9ca3af;margin-bottom:14px}
+  .legend{display:flex;gap:10px;font-size:11px;margin-bottom:10px;flex-wrap:wrap}
+  .legend span{padding:2px 6px;border-radius:4px}
+  .pending{background:#374151;color:#d1d5db}
+  .ok{background:#065f46;color:#a7f3d0}
+  .slow{background:#92400e;color:#fde68a}
+  .fail{background:#7f1d1d;color:#fecaca}
+  .row{display:grid;grid-template-columns:1fr 72px 70px;gap:6px;padding:6px 8px;border-radius:6px;background:#1f2937;margin-bottom:4px;align-items:center;font-size:13px}
+  .url{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;word-break:break-all}
+  .status{text-align:center;font-weight:600;padding:3px;border-radius:4px;font-size:11px}
+  .ms{text-align:right;color:#9ca3af;font-size:11px;font-family:ui-monospace,monospace}
+  .group{margin-top:14px;font-weight:600;color:#fbbf24;font-size:12px;border-bottom:1px solid #374151;padding-bottom:3px}
+  button{background:#3b82f6;color:white;border:0;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;width:100%;margin-bottom:10px}
+  button:disabled{background:#374151;color:#9ca3af}
+  .summary{margin-top:14px;padding:10px;background:#1f2937;border-radius:6px;font-size:12px;display:none}
+  .summary.show{display:block}
+  .ip{color:#60a5fa;font-size:10px}
+</style>
+</head>
+<body>
+<h1>Bigipig Routing Diag</h1>
+<div class="sub">Открой это с включённым Bigipig VPN. Зелёный = домен проходит через direct (правильно). Красный/timeout = домен едет через VPN exit (плохо для RU-сервисов).</div>
+<div class="legend">
+  <span class="pending">ожидание</span>
+  <span class="ok">&lt;2s OK</span>
+  <span class="slow">&gt;2s медленно</span>
+  <span class="fail">timeout/fail</span>
+</div>
+<button id="run" onclick="runAll()">Запустить тест</button>
+<div id="results"></div>
+<div class="summary" id="summary"></div>
+
+<script>
+const TESTS = [
+  {group: 'Контроль', items: [
+    {url: 'https://yandex.ru/', expect: 'direct', note: 'RU контроль — должен быть быстро'},
+    {url: 'https://example.com/', expect: 'proxy', note: 'не-RU контроль — через VPN'}
+  ]},
+  {group: 'Парковки Москвы', items: [
+    {url: 'https://parking.mos.ru/', expect: 'direct', note: 'портал парковок'},
+    {url: 'https://lk.parking.mos.ru/', expect: 'direct', note: 'личный кабинет'},
+    {url: 'https://api.parking.mos.ru/', expect: 'direct', note: 'API сервер (37.230.149.138)'},
+    {url: 'https://transport.mos.ru/', expect: 'direct', note: 'портал транспорта'},
+    {url: 'https://mosparking.ru/', expect: 'direct', note: 'mosparking.ru'},
+    {url: 'https://mosparking.com/', expect: 'direct', note: 'mosparking.com'}
+  ]},
+  {group: 'Яндекс (для сравнения)', items: [
+    {url: 'https://eda.yandex.ru/', expect: 'direct'},
+    {url: 'https://taxi.yandex.ru/', expect: 'direct'}
+  ]},
+  {group: 'Прокси (должны через VPN)', items: [
+    {url: 'https://www.youtube.com/', expect: 'proxy'},
+    {url: 'https://chatgpt.com/', expect: 'proxy'}
+  ]}
+];
+
+const TIMEOUT_MS = 8000;
+
+async function testOne(url) {
+  const t0 = performance.now();
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  try {
+    await fetch(url, {mode: 'no-cors', signal: ctl.signal, cache: 'no-store'});
+    clearTimeout(timer);
+    return {ok: true, ms: Math.round(performance.now() - t0), err: null};
+  } catch (e) {
+    clearTimeout(timer);
+    return {ok: false, ms: Math.round(performance.now() - t0), err: e.name === 'AbortError' ? 'timeout' : (e.message || 'fail')};
+  }
+}
+
+function render() {
+  const r = document.getElementById('results');
+  r.innerHTML = '';
+  TESTS.forEach((g, gi) => {
+    const grp = document.createElement('div');
+    grp.className = 'group';
+    grp.textContent = g.group;
+    r.appendChild(grp);
+    g.items.forEach((t, ti) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.id = `t-${gi}-${ti}`;
+      row.innerHTML = `
+        <div>
+          <div class="url">${t.url}</div>
+          ${t.note ? '<div style="font-size:10px;color:#6b7280">' + t.note + '</div>' : ''}
+        </div>
+        <div class="status pending" id="s-${gi}-${ti}">…</div>
+        <div class="ms" id="m-${gi}-${ti}"></div>
+      `;
+      r.appendChild(row);
+    });
+  });
+}
+
+async function runAll() {
+  const btn = document.getElementById('run');
+  btn.disabled = true;
+  btn.textContent = 'Тестирую…';
+  render();
+  const summary = {ok: 0, slow: 0, fail: 0, badDirect: [], badProxy: []};
+  for (let gi = 0; gi < TESTS.length; gi++) {
+    for (let ti = 0; ti < TESTS[gi].items.length; ti++) {
+      const t = TESTS[gi].items[ti];
+      const sel = document.getElementById(`s-${gi}-${ti}`);
+      const ms = document.getElementById(`m-${gi}-${ti}`);
+      const res = await testOne(t.url);
+      let cls, label;
+      if (!res.ok) {
+        cls = 'fail';
+        label = res.err === 'timeout' ? 'timeout' : 'fail';
+        summary.fail++;
+        if (t.expect === 'direct') summary.badDirect.push(t.url);
+      } else if (res.ms > 2000) {
+        cls = 'slow';
+        label = 'slow';
+        summary.slow++;
+        if (t.expect === 'direct') summary.badDirect.push(t.url + ' (slow)');
+      } else {
+        cls = 'ok';
+        label = 'ok';
+        summary.ok++;
+      }
+      sel.className = 'status ' + cls;
+      sel.textContent = label;
+      ms.textContent = res.ms + ' ms';
+    }
+  }
+  btn.disabled = false;
+  btn.textContent = 'Перезапустить';
+  const s = document.getElementById('summary');
+  s.classList.add('show');
+  let html = `<div><b>Готово:</b> ok=${summary.ok}, slow=${summary.slow}, fail=${summary.fail}</div>`;
+  if (summary.badDirect.length) {
+    html += `<div style="margin-top:6px;color:#fca5a5"><b>⚠️ Должны были быть direct, но не сработали:</b><br>` + summary.badDirect.join('<br>') + '</div>';
+  }
+  if (!summary.badDirect.length && summary.fail === 0) {
+    html += '<div style="margin-top:6px;color:#6ee7b7">✓ Все direct-домены проходят. Если парковки всё равно не работают — приложение использует домен/IP не из списка. Включи логи Happ (Настройки → Дополнительно → Логи) и попробуй ещё раз.</div>';
+  }
+  s.innerHTML = html;
+}
+
+render();
+</script>
+</body>
+</html>
