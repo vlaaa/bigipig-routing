@@ -1,6 +1,6 @@
 {
   "Name": "Bigipig Routing",
-  "LastUpdated": 1778643600,
+  "LastUpdated": 1778667000,
   "GlobalProxy": true,
   "UseChunkFiles": false,
   "FakeDns": false,
@@ -109,18 +109,28 @@
     "domain:android.googleapis.com",
     "domain:gcm.googleapis.com",
     "domain:mtalk.google.com",
-    "domain:gorms.mobi",
-    "domain:gorparkovki.ru",
-    "domain:gorparkovki.com",
+    "domain:mos.ru",
+    "domain:parking.mos.ru",
+    "domain:lk.parking.mos.ru",
+    "domain:api.parking.mos.ru",
+    "domain:transport.mos.ru",
+    "domain:dt.mos.ru",
     "domain:mosparking.ru",
     "domain:mosparking.com",
-    "domain:crftr.net",
-    "domain:apicrafter.ru"
+    "domain:gorparkovki.ru",
+    "domain:gorparkovki.com",
+    "domain:apicrafter.ru",
+    "domain:crftr.net"
   ],
   "DirectIp": [
     "geoip:private",
     "geoip:whitelist",
-    "17.0.0.0/8"
+    "17.0.0.0/8",
+    "178.248.232.0/21",
+    "37.230.148.0/23",
+    "92.53.64.0/18",
+    "94.79.0.0/18",
+    "178.176.0.0/14"
   ],
   "ProxySites": [
     "geosite:youtube",
