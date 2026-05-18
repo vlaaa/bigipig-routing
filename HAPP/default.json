@@ -1,6 +1,6 @@
 {
     "Name": "Bigipig Routing",
-    "LastUpdated": 1779115127,
+    "LastUpdated": 1779115512,
     "GlobalProxy": true,
     "UseChunkFiles": false,
     "FakeDns": false,
@@ -120,7 +120,14 @@
         "domain:gorparkovki.ru",
         "domain:gorparkovki.com",
         "domain:apicrafter.ru",
-        "domain:crftr.net"
+        "domain:crftr.net",
+        "domain:pvp.net",
+        "domain:riotgames.com",
+        "domain:riotcdn.net",
+        "domain:riotcdn.com",
+        "domain:leagueoflegends.com",
+        "domain:rgpub.io",
+        "domain:rdatasrv.net"
     ],
     "DirectIp": [
         "geoip:private",
